@@ -1,26 +1,40 @@
-# 🗄️ Estudos e Resolução de Provas - Banco de Dados II (BD2)
+# Banco de Dados II — Provas e Revisões
 
-Este repositório reúne scripts SQL com resoluções de provas práticas e simulados utilizados como material de revisão aprofundada para a disciplina de **Banco de Dados II**. 
+Repositório com exercícios, revisões e provas práticas da disciplina de **Banco de Dados II**, utilizando principalmente **MySQL** e as bases **ClassicModels**, **Sakila** e **World**.
 
-O objetivo deste laboratório foi exercitar a escrita de consultas analíticas complexas (DML), funções nativas de SGBDs relacionais (MySQL) e a criação estruturada de esquemas de tabelas (DDL) com foco em integridade referencial.
+## Conteúdos praticados
 
-## 🛠️ Competências Praticadas
+- Views e CTEs (`WITH`)
+- Stored Procedures e parâmetros de entrada/saída
+- `JOIN`, `GROUP BY`, `ORDER BY` e funções de agregação
+- Estruturas condicionais com `CASE` e `IF`
+- Manipulação de datas
+- Criação e atualização de tabelas
+- Consultas envolvendo estoque, vendas, clientes e faturamento
 
-### 1. Consultas Avançadas & Business Intelligence (DML)
-* **Junções Complexas (Multi-Joins):** Cruzamento de dados conectando múltiplas tabelas simultaneamente sobre os schemas universais *Sakila* e *ClassicModels*.
-* **Lógica Condicional Dinâmica:** Implementação da estrutura `CASE WHEN ... THEN ... ELSE` para gerar relatórios preditivos e análises de status diretamente via banco de dados.
-* **Manipulação Temporal e de Tipos:** Uso avançado de funções matemáticas e de data como `DATEDIFF()`, `YEAR()`, `MONTH()`, além de conversões explícitas de tipos de dados usando `CAST()`.
-* **Agrupamentos e Operações de Conjunto:** Agregações complexas com `GROUP BY`, filtros em grupos via `HAVING` e unificação de fluxos de dados distintos com `UNION ALL`.
+## Provas adicionadas
 
-### 2. Modelagem Relacional & Arquitetura (DDL)
-* **Integridade Referencial Estrita:** Definição manual de chaves primárias, chaves estrangeiras (`FOREIGN KEY`) e índices.
-* **Regras de Negócio em Cascata:** Configuração precisa de comportamentos de deleção e atualização utilizando `ON DELETE CASCADE` e `ON DELETE RESTRICT`.
-* **Relacionamentos Complexos:** Estruturação de tabelas associativas/junção para representação de relacionamentos N:M (Muitos-para-Muitos), incluindo Chaves Primárias Compostas.
+A pasta `provas/` contém os scripts SQL das provas enviadas e um arquivo com o resumo dos respectivos enunciados:
 
-## 📁 Estrutura do Repositório
+- `Prova_Final_02_Manha_B.sql`
+- `Prova_Final_03_Tarde_A.sql`
+- `Prova_Final_06_B.sql`
+- `ENUNCIADOS.md`
 
-O repositório está organizado por turnos e gabaritos de exames práticos:
+Os arquivos SQL foram organizados para publicação no GitHub e tiveram os comentários removidos. A lógica original dos scripts enviados foi mantida.
 
-* `Prova_Manha_A.sql`: Foco em relatórios de margem de lucro, limites de crédito utilizando o banco *ClassicModels* e modelagem DDL acadêmica (Alunos/Disciplinas).
-* `Prova_Manha_B.sql`: Resoluções envolvendo o banco *Sakila*, cálculos de atraso de locação e queries consolidadas com múltiplos blocos de `UNION ALL`.
-* `Prova_Tarde_B_Gabarito.sql`: Scripts contendo conferência de caixas, agrupamento de inventário por categorias de filmes e modelagem de tabelas associativas N:M (Professores/Disciplinas).
+## Outros arquivos de revisão
+
+O repositório também mantém os scripts de revisão já existentes:
+
+- `Prova_Manha_A.sql`
+- `Prova_Manha_B.sql`
+- `Prova_Tarde_B_Gabarito.sql`
+
+## Como utilizar
+
+Abra os scripts no MySQL Workbench, selecione a base indicada em cada exercício e execute os blocos correspondentes. Algumas questões utilizam mais de uma base de dados, portanto é necessário ter os schemas ClassicModels, Sakila e World disponíveis no MySQL.
+
+## Objetivo
+
+Este repositório é utilizado como registro acadêmico e material de estudo para praticar consultas SQL, views, CTEs, procedures e manipulação de dados em bancos relacionais.
