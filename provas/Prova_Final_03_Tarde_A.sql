@@ -1,143 +1,170 @@
-create or replace view view_total_recebido_produto as (
-with
-cte_escritorios(officeCode) as (
-select officeCode from offices
-where city in ('London', 'Tokyo')),
-cte_empregados(employeeNumber, officeCode) as (
-select employeeNumber, officeCode from employees),
-cte_clientes(customerNumber, salesRepEmployeeNumber) as (
-select customerNumber, salesRepEmployeeNumber from customers
-where creditLimit > 100000
+USE classicmodels;
+
+CREATE OR REPLACE VIEW view_total_recebido_produto AS
+WITH
+cte_escritorios AS (
+    SELECT officeCode
+    FROM offices
+    WHERE city IN ('London', 'Tokyo')
 ),
-cte_pedidos(orderNumber, customerNumber) as (
-select orderNumber, customerNumber from orders
-where year(orderDate) = 2003 and month(orderDate) in (04, 05, 06)
+cte_empregados AS (
+    SELECT employeeNumber, officeCode
+    FROM employees
+    WHERE officeCode IN (SELECT officeCode FROM cte_escritorios)
 ),
-cte_detalhes(orderNumber, productCode) as (
-select orderNumber, productCode from orderdetails
+cte_clientes AS (
+    SELECT customerNumber, salesRepEmployeeNumber
+    FROM customers
+    WHERE creditLimit > 100000
+      AND salesRepEmployeeNumber IS NOT NULL
 ),
-cte_pagamentos(customerNumber, amount) as (
-select customerNumber, amount from payments
+cte_pedidos AS (
+    SELECT orderNumber, customerNumber
+    FROM orders
+    WHERE orderDate >= '2003-04-01'
+      AND orderDate < '2003-07-01'
+),
+cte_detalhes AS (
+    SELECT orderNumber, productCode, quantityOrdered, priceEach
+    FROM orderdetails
 )
-select
-cte_detalhes.productCode,
-sum(cte_pagamentos.amount) as valor_total_recebido
-from cte_escritorios
-inner join cte_empregados on cte_escritorios.officeCode = cte_empregados.officeCode
-inner join cte_clientes on cte_empregados.employeeNumber = cte_clientes.salesRepEmployeeNumber
-inner join cte_pedidos on cte_clientes.customerNumber = cte_pedidos.customerNumber
-inner join cte_detalhes on cte_pedidos.orderNumber = cte_detalhes.orderNumber
-inner join cte_pagamentos on cte_clientes.customerNumber = cte_pagamentos.customerNumber
-group by cte_detalhes.productCode
-limit 5
-);
-select * from view_total_recebido_produto;
+SELECT
+    d.productCode,
+    ROUND(SUM(d.quantityOrdered * d.priceEach), 2) AS valor_total_recebido
+FROM cte_escritorios o
+INNER JOIN cte_empregados e ON o.officeCode = e.officeCode
+INNER JOIN cte_clientes c ON e.employeeNumber = c.salesRepEmployeeNumber
+INNER JOIN cte_pedidos p ON c.customerNumber = p.customerNumber
+INNER JOIN cte_detalhes d ON p.orderNumber = d.orderNumber
+GROUP BY d.productCode
+ORDER BY valor_total_recebido DESC
+LIMIT 5;
 
+SELECT * FROM view_total_recebido_produto;
 
-delimiter $$
-create procedure proc_filme_mais_alugado_loja(in p_loja_id int)
-begin
-select
-concat('O filme mais alugado é: "', film.title, '" que do gênero: "', category.name, '"') as Mensagem
-from inventory
+USE sakila;
 
-inner join rental using(inventory_id)
+DROP PROCEDURE IF EXISTS proc_filme_mais_alugado_loja;
 
-inner join film using(film_id)
+DELIMITER $$
+CREATE PROCEDURE proc_filme_mais_alugado_loja(IN p_loja_id INT)
+BEGIN
+    SELECT CONCAT(
+        'O filme mais alugado é: "',
+        f.title,
+        '" que do gênero: "',
+        c.name,
+        '"'
+    ) AS Mensagem
+    FROM inventory i
+    INNER JOIN rental r ON i.inventory_id = r.inventory_id
+    INNER JOIN film f ON i.film_id = f.film_id
+    INNER JOIN film_category fc ON f.film_id = fc.film_id
+    INNER JOIN category c ON fc.category_id = c.category_id
+    WHERE i.store_id = p_loja_id
+    GROUP BY f.film_id, f.title, c.category_id, c.name
+    ORDER BY COUNT(r.rental_id) DESC, f.title
+    LIMIT 1;
+END $$
+DELIMITER ;
 
-inner join film_category using(film_id)
+USE classicmodels;
 
-inner join category using(category_id)
+DROP PROCEDURE IF EXISTS proc_novo_pedido_cliente;
 
-
-where inventory.store_id = p_loja_id
-
-
-group by film.title, category.name
-
-
-order by count(rental.rental_id) desc
-
-limit 1;
-
-end $$
-
-delimiter ;
-
-
-call proc_filme_mais_alugado_loja(1);
-
-
-call proc_filme_mais_alugado_loja(2);
-
-
-delimiter $$
-
-create procedure proc_novo_pedido_cliente(
-    in p_customerNumber int,
-    in p_salesRepEmployeeNumber int,
-    in p_creditLimit decimal(10,2)
+DELIMITER $$
+CREATE PROCEDURE proc_novo_pedido_cliente(
+    IN p_customerNumber INT,
+    IN p_salesRepEmployeeNumber INT,
+    IN p_creditLimit DECIMAL(10,2)
 )
-rotulo_principal: begin
-    declare v_existe_cliente int default 0;
-    declare v_vendedor_atual int;
-    declare v_novo_orderNumber int;
-    declare v_produto_codigo varchar(15);
-    declare v_produto_msrp decimal(10,2);
+rotulo_principal: BEGIN
+    DECLARE v_existe_cliente INT DEFAULT 0;
+    DECLARE v_existe_vendedor INT DEFAULT 0;
+    DECLARE v_vendedor_atual INT DEFAULT NULL;
+    DECLARE v_novo_orderNumber INT;
+    DECLARE v_produto_codigo VARCHAR(15);
+    DECLARE v_produto_msrp DECIMAL(10,2);
+    DECLARE v_produto_estoque INT;
+    DECLARE v_matricula INT DEFAULT 86;
 
+    SELECT COUNT(*)
+    INTO v_existe_cliente
+    FROM customers
+    WHERE customerNumber = p_customerNumber;
 
-    declare v_matricula int default 086;
+    IF v_existe_cliente = 0 THEN
+        SELECT 'O processo não foi concluído com sucesso' AS Mensagem;
+        LEAVE rotulo_principal;
+    END IF;
 
+    SELECT salesRepEmployeeNumber
+    INTO v_vendedor_atual
+    FROM customers
+    WHERE customerNumber = p_customerNumber;
 
-    select count(*) into v_existe_cliente
-    from customers
-    where customerNumber = p_customerNumber;
+    IF v_vendedor_atual IS NOT NULL THEN
+        SELECT 'O processo não foi concluído com sucesso' AS Mensagem;
+        LEAVE rotulo_principal;
+    END IF;
 
-    if v_existe_cliente = 0 then
-        select 'O processo não foi concluído com sucesso' as Mensagem;
-        leave rotulo_principal;
-    end if;
+    SELECT COUNT(*)
+    INTO v_existe_vendedor
+    FROM employees
+    WHERE employeeNumber = p_salesRepEmployeeNumber;
 
+    IF v_existe_vendedor = 0 THEN
+        SELECT 'O processo não foi concluído com sucesso' AS Mensagem;
+        LEAVE rotulo_principal;
+    END IF;
 
-    select salesRepEmployeeNumber into v_vendedor_atual
-    from customers
-    where customerNumber = p_customerNumber;
+    SELECT productCode, MSRP, quantityInStock
+    INTO v_produto_codigo, v_produto_msrp, v_produto_estoque
+    FROM products
+    ORDER BY quantityInStock DESC, productCode
+    LIMIT 1;
 
-    if v_vendedor_atual is not null then
-        select 'O processo não foi concluído com sucesso' as Mensagem;
-        leave rotulo_principal;
-    end if;
+    IF v_produto_estoque < v_matricula THEN
+        SELECT 'O processo não foi concluído com sucesso' AS Mensagem;
+        LEAVE rotulo_principal;
+    END IF;
 
+    START TRANSACTION;
 
-    update customers
-    set salesRepEmployeeNumber = p_salesRepEmployeeNumber,
+    UPDATE customers
+    SET salesRepEmployeeNumber = p_salesRepEmployeeNumber,
         creditLimit = p_creditLimit
-    where customerNumber = p_customerNumber;
+    WHERE customerNumber = p_customerNumber;
 
+    SELECT COALESCE(MAX(orderNumber), 0) + 1
+    INTO v_novo_orderNumber
+    FROM orders;
 
-    select max(orderNumber) + 1 into v_novo_orderNumber
-    from orders;
-
-
-    insert into orders (orderNumber, orderDate, requiredDate, shippedDate, status, customerNumber)
-    values (
+    INSERT INTO orders (
+        orderNumber,
+        orderDate,
+        requiredDate,
+        shippedDate,
+        status,
+        customerNumber
+    )
+    VALUES (
         v_novo_orderNumber,
-        current_date(),
-        current_date() + interval 7 day,
-        current_date() + interval 5 day,
+        CURRENT_DATE(),
+        CURRENT_DATE() + INTERVAL 7 DAY,
+        CURRENT_DATE() + INTERVAL 5 DAY,
         'Shipped',
         p_customerNumber
     );
 
-
-    select productCode, MSRP into v_produto_codigo, v_produto_msrp
-    from products
-    order by quantityInStock desc
-    limit 1;
-
-
-    insert into orderdetails (orderNumber, productCode, quantityOrdered, priceEach, orderLineNumber)
-    values (
+    INSERT INTO orderdetails (
+        orderNumber,
+        productCode,
+        quantityOrdered,
+        priceEach,
+        orderLineNumber
+    )
+    VALUES (
         v_novo_orderNumber,
         v_produto_codigo,
         v_matricula,
@@ -145,78 +172,46 @@ rotulo_principal: begin
         1
     );
 
+    UPDATE products
+    SET quantityInStock = quantityInStock - v_matricula
+    WHERE productCode = v_produto_codigo;
 
-    update products
-    set quantityInStock = quantityInStock - v_matricula
-    where productCode = v_produto_codigo;
+    COMMIT;
 
+    SELECT 'Processo concluído com sucesso!' AS Mensagem;
+END rotulo_principal $$
+DELIMITER ;
 
-    select 'Processo concluído com sucesso!' as Mensagem;
+USE world;
 
-end rotulo_principal $$
+DROP TABLE IF EXISTS paises_servocroatas;
 
-delimiter ;
+CREATE TABLE paises_servocroatas AS
+SELECT
+    c.Name AS nome_pais,
+    c.Population / NULLIF(c.SurfaceArea, 0) AS densidade,
+    CASE
+        WHEN c.Population / NULLIF(c.SurfaceArea, 0) > 100 THEN 'Pais Populoso'
+        ELSE 'Dentro do Padrão'
+    END AS analise
+FROM country c
+INNER JOIN countrylanguage cl ON c.Code = cl.CountryCode
+WHERE c.Region = 'Southern Europe'
+  AND cl.Language = 'Serbo-Croatian';
 
+DROP PROCEDURE IF EXISTS proc_rotina_diaria;
 
-create table paises_servocroatas as (
-select
-c.Name as nome_pais,
-(c.Population / c.SurfaceArea) as densidade,
-case
-when (c.Population / c.SurfaceArea) > 100 then 'Pais Populoso'
-else 'Dentro do Padrão'
-end as analise
-from country c
-inner join countrylanguage cl on c.Code = cl.CountryCode
-where c.Region = 'Southern Europe'
-and cl.Language = 'Serbo-Croatian'
-);
-
-
-delimiter $$
-
-create procedure proc_rotina_diaria(in p_nome_pessoa varchar(50))
-begin
-select
-p_nome_pessoa as pessoa,
-1 as passo,
-'Acordar cedo, tomar um café reforçado e ir para o trabalho' as atividade
-
-union all
-
-
-    select
-        p_nome_pessoa,
-        2,
-        'Trabalhar focadíssimo durante a manhã e a tarde'
-
-    union all
-
-
-    select
-        p_nome_pessoa,
-        3,
-        'Sair do trabalho e ir correndo para a escola/faculdade'
-
-    union all
-
-
-    select
-        p_nome_pessoa,
-        4,
-        'Assistir às aulas, fazer anotações e realizar os trabalhos em grupo'
-
-    union all
-
-
-    select
-        p_nome_pessoa,
-        5,
-        'Voltar para casa, jantar, dar uma última revisada na matéria e dormir';
-
-end $$
-
-
-delimiter ;
-
-call proc_rotina_diaria('Ana');
+DELIMITER $$
+CREATE PROCEDURE proc_rotina_diaria(IN p_nome_pessoa VARCHAR(50))
+BEGIN
+    SELECT p_nome_pessoa AS pessoa, 1 AS passo, 'Acordar cedo, tomar um café reforçado e ir para o trabalho' AS atividade
+    UNION ALL
+    SELECT p_nome_pessoa, 2, 'Trabalhar focadíssimo durante a manhã e a tarde'
+    UNION ALL
+    SELECT p_nome_pessoa, 3, 'Sair do trabalho e ir para a escola/faculdade'
+    UNION ALL
+    SELECT p_nome_pessoa, 4, 'Assistir às aulas, fazer anotações e realizar os trabalhos em grupo'
+    UNION ALL
+    SELECT p_nome_pessoa, 5, 'Voltar para casa, jantar, dar uma última revisada na matéria e dormir';
+END $$
+DELIMITER ;
